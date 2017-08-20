@@ -1,0 +1,964 @@
+0x251 the bigger picture
+    processor architectures
+        x86
+        Sparc processor (used in Sun Workstations)
+        PowerPC processor (in pre-Intel Macs)
+    use objdump to examine compiled binaries
+        $ objdump -D a.out | grep -A20 main.:
+    1 byte = 8 bits = 8 binary digit = 256 possible values = 2 hex digit
+    cpu access memory to get machine language instructions of program
+    a memory address points to 1 byte of memory
+    x86 32 bit processor has 2^32 possible memory address
+        there are 32 binary digit to represent memory address = 32 bits = 4 bytes = 4 * 8 bits = 4 * 2 hex = 8 hex digit
+            eg. 0x080483a9
+    machine language instructions = machine code = 1010111010100100101....
+    assembly code has 1 to 1 mapping to machine code
+    two big assembly syntax
+        AT&T
+        Intel
+        * Intel more readable
+    registers = processors' variables
+
+0x252 the x86 processor
+    8086 CPU = first x86 processor = from intel
+    more advanced = 80186, 80286, 80386, 80486
+        386 processor = 80386
+        486 processor = 80486
+    gdb
+        see program memory, view registers current value
+    registers
+        EAX, ECX, EDX, EBX
+            Accumulator, Counter, Data, Base registers
+            general-purpose registers
+            temporary variables for the CPU
+        ESP, EBP, ESI, EDI
+            Stack Pointer, Base Pointer, Source Index, Destination Index
+            general-purpose registers
+            ESP, EBP store 32-bit address pointing to memory
+            instructions that do "load" and "store" use ESI, EDI, they store the source and destination that need to read from and write to
+        EIP
+            = Instruction Pointer
+            point to current instruction the processor is reading
+        EFLAGS
+            consists of several bit flags that are used for comparisons and memory segmentations
+
+0x253 Assembly Language
+    style
+        operation <dest>, <source>
+            dest, source = register, mem address, value
+        basic
+            eg
+                8048375: 89 e5     mov ebp,esp
+                8048377: 83 ec 08  sub esp,0x8
+            explain
+                move value from ESP to EBP then (EBP - 8)
+            
+        control flow
+            operation "cmp" = compare values
+            if operation = j<something> , is jump to somewhere depending on result
+            eg
+                804838b: 83 7d fc 09  cmp DWORD PTR [ebp-4],0x9
+                804838f: 7e 02        jle 8048393 <main+0x1f>
+                8048391: eb 13        jmp 80483a6 <main+0x32>
+            explain
+                DWORD PTR [ebp - 4]
+                    DWORD PTR means the target is 4 byte
+                    a 4-byte value located at (EBP minus 4)
+                = if that value less than or equal to 9 then jump to 8048393 else 80483a6
+    use gdb
+        an interactive console
+        command and output
+            $ gcc -g firstprog.c  <--- minus g means let gdb control
+            $ gdb -q ./a.out
+            Using host libthread_db library "/lib/libthread_db.so.1".
+            (gdb) list
+            1 #include <stdio.h>
+            2
+            3 int main()
+            4 {
+            5 int i;
+            6 for(i=0; i < 10; i++)
+            7 {
+            8 printf("Hello, world!\n");
+            9 }
+            10 }
+            (gdb) disassemble main
+            Dump of assembler code for function main():
+            0x08048384 <main+0>: push ebp
+            0x08048385 <main+1>: mov ebp,esp  <------------ function prologue start
+            0x08048387 <main+3>: sub esp,0x8
+            0x0804838a <main+6>: and esp,0xfffffff0
+            0x0804838d <main+9>: mov eax,0x0
+            0x08048392 <main+14>: sub esp,eax  <------------ function prologue end
+            0x08048394 <main+16>: mov DWORD PTR [ebp-4],0x0  <------------ instruction pointer pointing
+            0x0804839b <main+23>: cmp DWORD PTR [ebp-4],0x9
+            0x0804839f <main+27>: jle 0x80483a3 <main+31>
+            0x080483a1 <main+29>: jmp 0x80483b6 <main+50>
+            0x080483a3 <main+31>: mov DWORD PTR [esp],0x80484d4
+            0x080483aa <main+38>: call 0x80482a8 <_init+56>
+            0x080483af <main+43>: lea eax,[ebp-4]
+            0x080483b2 <main+46>: inc DWORD PTR [eax]
+            0x080483b4 <main+48>: jmp 0x804839b <main+23>
+            0x080483b6 <main+50>: leave
+            0x080483b7 <main+51>: ret
+            End of assembler dump.
+            (gdb) break main
+            Breakpoint 1 at 0x8048394: file firstprog.c, line 6.
+            (gdb) run
+            Starting program: /hacking/a.out
+            Breakpoint 1, main() at firstprog.c:6
+            6 for(i=0; i < 10; i++)
+            (gdb) info register eip
+            eip 0x8048394 0x8048394
+            (gdb)
+        function prologue
+            compiler set up memory for main's local variables 
+            reason why C need declare variables
+            debugger point at 0x08048394 because he knows function prologue is auto generated
+
+        gdb arguments in interactive console
+            memory location to examine, how to display memory
+            display format
+                o Display in octal.
+                x Display in hexadecimal.
+                u Display in unsigned, standard base-10 decimal.
+                t Display in binary.
+            example 1: different display format
+                (gdb) i r eip  <------ ="info register eip", input in interactive console, look for the memory of eip
+                eip 0x8048384 0x8048384 <main+16>
+                (gdb) x/o 0x8048384  <------ first x means "examine memory", second x is the display format
+                0x8048384 <main+16>: 077042707  <------ octal display
+                (gdb) x/x $eip
+                0x8048384 <main+16>: 0x00fc45c7  <------ hex display 
+                (gdb) x/u $eip
+                0x8048384 <main+16>: 16532935  <------ usigned display
+                (gdb) x/t $eip
+                0x8048384 <main+16>: 00000000111111000100010111000111  <------ binary display, all 4 display are the same value
+                (gdb)
+            example 2: examine more than 1 word
+                (gdb) x/2x $eip  <------ examine $eip and ($eip + 4)
+                0x8048384 <main+16>: 0x00fc45c7 0x83000000  <------ 4 byte is called a word
+                (gdb) x/12x $eip  <------ examine $eip and ($eip + 4) and ($eip + 8) and ($eip + 12) and ...
+                0x8048384 <main+16>: 0x00fc45c7 0x83000000 0x7e09fc7d 0xc713eb02
+                0x8048394 <main+32>: 0x84842404 0x01e80804 0x8dffffff 0x00fffc45
+                0x80483a4 <main+48>: 0xc3c9e5eb 0x90909090 0x90909090 0x5de58955
+                (gdb)
+            4 byte is called a word
+            a unit is each section of memory in each line, default size is a word, eg. 0x5de58955
+            size of unit
+                b A single byte
+                h A halfword, which is two bytes in size
+                w A word, which is four bytes in size
+                g A giant, which is eight bytes in size
+            x86 use little endian = least significant byte first
+            example 3: different unit size
+                (gdb) x/8xb $eip
+                0x8048384 <main+16>: 0xc7 0x45 0xfc 0x00 0x00 0x00 0x00 0x83
+                (gdb) x/8xh $eip
+                0x8048384 <main+16>: 0x45c7 0x00fc 0x0000 0x8300 0xfc7d 0x7e09 0xeb02 0xc713
+                (gdb) x/8xw $eip
+                0x8048384 <main+16>: 0x00fc45c7 0x83000000 0x7e09fc7d 0xc713eb02  <------ 0x00fc45c7 diff with "0xc7 0x45 0xfc 0x00 0x00 0x00 0x00 0x83" because of little endian
+                0x8048394 <main+32>: 0x84842404 0x01e80804 0x8dffffff 0x00fffc45
+                (gdb)
+            example 4: little endian
+                (gdb) x/4xb $eip
+                0x8048384 <main+16>: 0xc7 0x45 0xfc 0x00  <------ this is the real order store in processor, bytes are in reverse order, so will be wrong numerically
+                (gdb) x/4ub $eip
+                0x8048384 <main+16>: 199 69 252 0
+                (gdb) x/1xw $eip
+                0x8048384 <main+16>: 0x00fc45c7  <------ this is the correct order numerically since gdb help reverse it to display for you
+                (gdb) x/1uw $eip
+                0x8048384 <main+16>: 16532935
+                (gdb) quit
+                The program is running. Exit anyway? (y or n) y
+                reader@hacking:~/booksrc $ bc -ql
+                199*(256^3) + 69*(256^2) + 252*(256^1) + 0*(256^0)
+                3343252480
+                0*(256^3) + 252*(256^2) + 69*(256^1) + 199*(256^0)
+                16532935
+                quit
+            example 5: see as assembly language
+                reader@hacking:~/booksrc $ gdb -q ./a.out
+                Using host libthread_db library "/lib/tls/i686/cmov/libthread_db.so.1".
+                (gdb) break main
+                Breakpoint 1 at 0x8048384: file firstprog.c, line 6.
+                (gdb) run
+                Starting program: /home/reader/booksrc/a.out
+                Breakpoint 1, main () at firstprog.c:6
+                6 for(i=0; i < 10; i++)
+                (gdb) i r $eip  <------ not in first line anymore
+                eip 0x8048384 0x8048384 <main+16>
+                (gdb) x/i $eip  <------ see memory not as hex or binary, but as assembly code
+                0x8048384 <main+16>: mov DWORD PTR [ebp-4],0x0  <------ is "int i;", it puts zero in where [ebp - 4] pointing to (4 because int is 4 bytes), eg. if ebp stores 0xbffff808, then [ebp - 4] is 0xbffff804
+                (gdb) x/3i $eip
+                0x8048384 <main+16>: mov DWORD PTR [ebp-4],0x0
+                0x804838b <main+23>: cmp DWORD PTR [ebp-4],0x9
+                0x804838f <main+27>: jle 0x8048393 <main+31>
+                (gdb) x/7xb $eip
+                0x8048384 <main+16>: 0xc7 0x45 0xfc 0x00 0x00 0x00 0x00
+                (gdb) x/i $eip
+                0x8048384 <main+16>: mov DWORD PTR [ebp-4],0x0
+                (gdb)
+            example 6: before and after setting variable i
+                before that
+                    (gdb) i r ebp  <------ see what ebp storing
+                    ebp 0xbffff808 0xbffff808  <------ storing this address 0xbffff808
+                    (gdb) x/4xb $ebp - 4  <------ see 4 bytes before "ebp pointed address"
+                    0xbffff804: 0xc0 0x83 0x04 0x08  <------ =0x080483c0, the garbage value pointed by $ebp - 4
+                    (gdb) x/4xb 0xbffff804  <------ 0xbffff804 = ebp - 4
+                    0xbffff804: 0xc0 0x83 0x04 0x08
+                    (gdb) print $ebp - 4
+                    $1 = (void *) 0xbffff804
+                    (gdb) x/4xb $1  <------ see 
+                    0xbffff804: 0xc0 0x83 0x04 0x08
+                    (gdb) x/xw $1
+                    0xbffff804: 0x080483c0
+                    (gdb)
+                after that
+                    (gdb) nexti
+                    0x0804838b 6 for(i=0; i < 10; i++)
+                    (gdb) x/4xb $1
+                    0xbffff804: 0x00 0x00 0x00 0x00  <------ $ebp - 4 is all zero now
+                    (gdb) x/dw $1
+                    0xbffff804: 0
+                    (gdb) i r eip
+                    eip 0x804838b 0x804838b <main+23>
+                    (gdb) x/i $eip
+                    0x804838b <main+23>: cmp DWORD PTR [ebp-4],0x9
+                    (gdb)
+            example 7: the for loop
+                (gdb) x/10i $eip
+                0x804838b <main+23>: cmp DWORD PTR [ebp-4],0x9  <------ compare i with 9, result store in EFLAGS
+                0x804838f <main+27>: jle 0x8048393 <main+31>  <------ if i <= 9, jump to 31
+                0x8048391 <main+29>: jmp 0x80483a6 <main+50>  <------ if i > 9, jump to 50
+                0x8048393 <main+31>: mov DWORD PTR [esp],0x8048484  <------ prepare for printf, make esp = 0x8048484, 0x8048484 store part of "hello world", see example 8 and example 9
+                0x804839a <main+38>: call 0x80482a0 <printf@plt>  <------ printf, see example 9
+                0x804839f <main+43>: lea eax,[ebp-4]  <------ copy address of [ebp-4] to eax, see example 10
+                0x80483a2 <main+46>: inc DWORD PTR [eax]  <------ increment by 1
+                0x80483a4 <main+48>: jmp 0x804838b <main+23>
+                0x80483a6 <main+50>: leave
+                0x80483a7 <main+51>: ret
+                (gdb)
+            example 8: display memory as string
+                (gdb) x/6cb 0x8048484  <------ c = translate output to ASCII (ASCII maps every keyboard keys to a number)
+                0x8048484: 72 'H' 101 'e' 108 'l' 108 'l' 111 'o' 32 ' '
+                (gdb) x/s 0x8048484  <------ s = format as entire string start from 0x8048484
+                0x8048484: "Hello, world!\n"
+                (gdb)
+            example 9: printf argument
+                (gdb) x/2i $eip  <------ see the following 2 instructions
+                0x8048393 <main+31>: mov DWORD PTR [esp],0x8048484
+                0x804839a <main+38>: call 0x80482a0 <printf@plt>
+                (gdb) x/xw $esp
+                0xbffff800: 0xb8000ce0  <------ esp is not 0x8048484
+                (gdb) nexti  <------ run main+31
+                0x0804839a 8 printf("Hello, world!\n");
+                (gdb) x/xw $esp
+                0xbffff800: 0x08048484  <------ esp is 0x8048484 now
+                (gdb)
+            example 10: instruct "lea" = Load Effective Address
+                (gdb) x/i $eip
+                0x804839f <main+43>: lea eax,[ebp-4]
+                (gdb) print $ebp - 4  <------ ebp - 4 is previously set to 0
+                $2 = (void *) 0xbffff804
+                (gdb) x/x $2
+                0xbffff804: 0x00000000
+                (gdb) i r eax
+                eax 0xd 13
+                (gdb) nexti  <------ run lea
+                0x080483a2 6 for(i=0; i < 10; i++)
+                (gdb) i r eax  <------ now eax "point to" ebp - 4
+                eax 0xbffff804 -1073743868
+                (gdb) x/xw $eax
+                0xbffff804: 0x00000000
+                (gdb) x/dw $eax
+                0xbffff804: 0
+                (gdb)
+            example 11: increment
+                (gdb) x/i $eip
+                0x80483a2 <main+46>: inc DWORD PTR [eax]
+                (gdb) x/dw $eax
+                0xbffff804: 0
+                (gdb) nexti
+                0x080483a4 6 for(i=0; i < 10; i++)
+                (gdb) x/dw $eax
+                0xbffff804: 1
+                (gdb)
+
+0x260 Back to Basics
+    0x261 Strings
+    0x262 Signed, Unsigned, Long, and Short
+        unsigned integer 4 bytes = 32 bits have 2^32 combinations, from 0 to 2^32 = 4294967296
+        signed integer 4 bytes = 32 bits have 2^32 combinations, from -2147483648 to 2147483647
+            positive signed same as unsigned
+            negative signed use 2's complement to store
+                write positive number in binary, invert it, add 1
+                after 2's complement, the result + original = 0
+        long, short can add to integer to alter its size
+        actual size depend on architecture
+            use sizeof() to check
+    0x263 Pointers
+        pointer 4 byte since x86 use 32 bits addressing
+        char 1 byte
+        use gdb to examine pointer
+            example 1
+                reader@hacking:~/booksrc $ gcc -g -o pointer pointer.c
+                reader@hacking:~/booksrc $ gdb -q ./pointer
+                Using host libthread_db library "/lib/tls/i686/cmov/libthread_db.so.1".
+                (gdb) list
+                1 #include <stdio.h>
+                2 #include <string.h>
+                3
+                4 int main() {
+                5 char str_a[20]; // A 20-element character array
+                6 char *pointer; // A pointer, meant for a character array
+                7 char *pointer2; // And yet another one
+                8
+                9 strcpy(str_a, "Hello, world!\n");
+                10 pointer = str_a; // Set the first pointer to the start of the array.
+                (gdb)
+                11 printf(pointer);
+                12
+                13 pointer2 = pointer + 2; // Set the second one 2 bytes further in.
+                14 printf(pointer2); // Print it.
+                15 strcpy(pointer2, "y you guys!\n"); // Copy into that spot.
+                16 printf(pointer); // Print again.
+                17 }
+                (gdb) break 11
+                Breakpoint 1 at 0x80483dd: file pointer.c, line 11.
+                (gdb) run
+                Starting program: /home/reader/booksrc/pointer
+                Breakpoint 1, main () at pointer.c:11
+                11 printf(pointer);
+                (gdb) x/xw pointer
+                0xbffff7e0: 0x6c6c6548
+                (gdb) x/s pointer
+                0xbffff7e0: "Hello, world!\n"
+                (gdb)
+            example 2: use reference in gdb
+                (gdb) x/xw &pointer
+                0xbffff7dc: 0xbffff7e0
+                (gdb) print &pointer
+                $1 = (char **) 0xbffff7dc
+                (gdb) print pointer
+                $2 = 0xbffff7e0 "Hello, world!\n"
+                (gdb)
+        format strings
+            expect value
+                %d Decimal
+                %u Unsigned decimal
+                %x Hexadecimal
+            expect pointers
+                %s String
+                %n Number of bytes written so far
+            example
+                #include <stdio.h>
+                int main() {
+                    char string[10];
+                    int A = -73;
+                    unsigned int B = 31337;
+                    strcpy(string, "sample");
+                    // Example of printing with different format string
+                    printf("[A] Dec: %d, Hex: %x, Unsigned: %u\n", A, A, A);
+                    printf("[B] Dec: %d, Hex: %x, Unsigned: %u\n", B, B, B);
+                    printf("[field width on B] 3: '%3u', 10: '%10u', '%08u'\n", B, B, B);
+                    printf("[string] %s Address %08x\n", string, string);
+                    // Example of unary address operator (dereferencing) and a %x format string
+                    printf("variable A is at address: %08x\n", &A);
+                }
+            result
+                reader@hacking:~/booksrc $ gcc -o fmt_strings fmt_strings.c
+                reader@hacking:~/booksrc $ ./fmt_strings
+                [A] Dec: -73, Hex: ffffffb7, Unsigned: 4294967223  <------ unsigned very big because of 2's complement
+                [B] Dec: 31337, Hex: 7a69, Unsigned: 31337
+                [field width on B] 3: '31337', 10: ' 31337', '00031337'
+                [string] sample Address bffff870
+                variable A is at address: bffff86c
+                reader@hacking:~/booksrc $
+            scanf expected all pointers
+        0x265 typecasting
+            pointer arithmetic
+                example 1: adding 1 to diff type of pointer have different results
+                    #include <stdio.h>
+                    int main() {
+                        int i;
+                        char char_array[5] = {'a', 'b', 'c', 'd', 'e'};
+                        int int_array[5] = {1, 2, 3, 4, 5};
+                        char *char_pointer;
+                        int *int_pointer;
+                        char_pointer = char_array;
+                        int_pointer = int_array;
+                        for(i=0; i < 5; i++) { // Iterate through the int array with the int_pointer.
+                            printf("[integer pointer] points to %p, which contains the integer %d\n",
+                            int_pointer, *int_pointer);
+                            int_pointer = int_pointer + 1;
+                        }
+                        for(i=0; i < 5; i++) { // Iterate through the char array with the char_pointer.
+                            printf("[char pointer] points to %p, which contains the char '%c'\n",
+                            char_pointer, *char_pointer);
+                            char_pointer = char_pointer + 1;
+                        }
+                    }
+                result
+                    reader@hacking:~/booksrc $ gcc pointer_types.c
+                    reader@hacking:~/booksrc $ ./a.out
+                    [integer pointer] points to 0xbffff7f0, which contains the integer 1
+                    [integer pointer] points to 0xbffff7f4, which contains the integer 2
+                    [integer pointer] points to 0xbffff7f8, which contains the integer 3
+                    [integer pointer] points to 0xbffff7fc, which contains the integer 4
+                    [integer pointer] points to 0xbffff800, which contains the integer 5
+                    [char pointer] points to 0xbffff810, which contains the char 'a'
+                    [char pointer] points to 0xbffff811, which contains the char 'b'
+                    [char pointer] points to 0xbffff812, which contains the char 'c'
+                    [char pointer] points to 0xbffff813, which contains the char 'd'
+                    [char pointer] points to 0xbffff814, which contains the char 'e'
+                    reader@hacking:~/booksrc $
+                example 2: pointer type missmatch
+                    #include <stdio.h>
+                    int main() {
+                        int i;
+                        char char_array[5] = {'a', 'b', 'c', 'd', 'e'};
+                        int int_array[5] = {1, 2, 3, 4, 5};
+                        char *char_pointer;
+                        int *int_pointer;
+                        char_pointer = int_array; // The char_pointer and int_pointer now  <------ will generate warning because of pointer type missmatch
+                        int_pointer = char_array; // point to incompatible data types.
+                        for(i=0; i < 5; i++) { // Iterate through the int array with the int_pointer.
+                            printf("[integer pointer] points to %p, which contains the char '%c'\n", int_pointer, *int_pointer);
+                            int_pointer = int_pointer + 1;
+                        }
+                        for(i=0; i < 5; i++) { // Iterate through the char array with the char_pointer.
+                            printf("[char pointer] points to %p, which contains the integer %d\n", char_pointer, *char_pointer);
+                            char_pointer = char_pointer + 1;
+                        }
+                    }
+                result
+                    reader@hacking:~/booksrc $ gcc pointer_types2.c
+                    pointer_types2.c: In function `main':
+                    pointer_types2.c:12: warning: assignment from incompatible pointer type
+                    pointer_types2.c:13: warning: assignment from incompatible pointer type
+                    reader@hacking:~/booksrc $ ./a.out
+                    [integer pointer] points to 0xbffff810, which contains the char 'a'
+                    [integer pointer] points to 0xbffff814, which contains the char 'e'
+                    [integer pointer] points to 0xbffff818, which contains the char '8'
+                    [integer pointer] points to 0xbffff81c, which contains the char '
+                    [integer pointer] points to 0xbffff820, which contains the char '?'
+                    [char pointer] points to 0xbffff7f0, which contains the integer 1  <------ since char pointer means examine every byte, when memory address are examined in every single byte instead of 4 bytes, two cases will be different because of little endian. It said it contains integer 1 = 0x00000001, but actually in memory they should be 0x01, 0x00, 0x00, 0x00.
+                    [char pointer] points to 0xbffff7f1, which contains the integer 0
+                    [char pointer] points to 0xbffff7f2, which contains the integer 0
+                    [char pointer] points to 0xbffff7f3, which contains the integer 0
+                    [char pointer] points to 0xbffff7f4, which contains the integer 2
+                    reader@hacking:~/booksrc $
+                example 3: correct pointer type missmatch
+                    #include <stdio.h>
+                    int main() {
+                        int i;
+                        char char_array[5] = {'a', 'b', 'c', 'd', 'e'};
+                        int int_array[5] = {1, 2, 3, 4, 5};
+                        char *char_pointer;
+                        int *int_pointer;
+                        char_pointer = (char *) int_array; // Typecast into the  <------ for remove warnings
+                        int_pointer = (int *) char_array; // pointer's data type.
+                        for(i=0; i < 5; i++) { // Iterate through the int array with the int_pointer.
+                            printf("[integer pointer] points to %p, which contains the char '%c'\n",
+                            int_pointer, *int_pointer);
+                            int_pointer = (int *) ((char *) int_pointer + 1);  <------ the key to be in correct order
+                        }
+                        for(i=0; i < 5; i++) { // Iterate through the char array with the char_pointer.
+                            printf("[char pointer] points to %p, which contains the integer %d\n",
+                            char_pointer, *char_pointer);
+                            char_pointer = (char *) ((int *) char_pointer + 1);
+                        }
+                    }
+                result
+                    reader@hacking:~/booksrc $ gcc pointer_types3.c
+                    reader@hacking:~/booksrc $ ./a.out
+                    [integer pointer] points to 0xbffff810, which contains the char 'a'
+                    [integer pointer] points to 0xbffff811, which contains the char 'b'
+                    [integer pointer] points to 0xbffff812, which contains the char 'c'
+                    [integer pointer] points to 0xbffff813, which contains the char 'd'
+                    [integer pointer] points to 0xbffff814, which contains the char 'e'
+                    [char pointer] points to 0xbffff7f0, which contains the integer 1
+                    [char pointer] points to 0xbffff7f4, which contains the integer 2
+                    [char pointer] points to 0xbffff7f8, which contains the integer 3
+                    [char pointer] points to 0xbffff7fc, which contains the integer 4
+                    [char pointer] points to 0xbffff800, which contains the integer 5
+                    reader@hacking:~/booksrc $
+                example 4: void pointer
+                    #include <stdio.h>
+                    int main() {
+                        int i;
+                        char char_array[5] = {'a', 'b', 'c', 'd', 'e'};
+                        int int_array[5] = {1, 2, 3, 4, 5};
+                        void *void_pointer;  <------ void pointer cannot be dereference and cannot do pointer arithmetic on its own. It holds just memory address.
+                        void_pointer = (void *) char_array;
+                        for(i=0; i < 5; i++) { // Iterate through the int array with the int_pointer.
+                            printf("[char pointer] points to %p, which contains the char '%c'\n",
+                            void_pointer, *((char *) void_pointer));
+                            void_pointer = (void *) ((char *) void_pointer + 1);
+                        }
+                        void_pointer = (void *) int_array;
+                        for(i=0; i < 5; i++) { // Iterate through the int array with the int_pointer.
+                            printf("[integer pointer] points to %p, which contains the integer %d\n",
+                            void_pointer, *((int *) void_pointer));
+                            void_pointer = (void *) ((int *) void_pointer + 1);
+                        }
+                    }
+                result
+                    reader@hacking:~/booksrc $ gcc pointer_types4.c
+                    reader@hacking:~/booksrc $ ./a.out
+                    [char pointer] points to 0xbffff810, which contains the char 'a'
+                    [char pointer] points to 0xbffff811, which contains the char 'b'
+                    [char pointer] points to 0xbffff812, which contains the char 'c'
+                    [char pointer] points to 0xbffff813, which contains the char 'd'
+                    [char pointer] points to 0xbffff814, which contains the char 'e'
+                    [integer pointer] points to 0xbffff7f0, which contains the integer 1
+                    [integer pointer] points to 0xbffff7f4, which contains the integer 2
+                    [integer pointer] points to 0xbffff7f8, which contains the integer 3
+                    [integer pointer] points to 0xbffff7fc, which contains the integer 4
+                    [integer pointer] points to 0xbffff800, which contains the integer 5
+                    reader@hacking:~/booksrc $
+                example 5: use unsigned integer to achieve the same result
+                    #include <stdio.h>
+                    int main() {
+                        int i;
+                        char char_array[5] = {'a', 'b', 'c', 'd', 'e'};
+                        int int_array[5] = {1, 2, 3, 4, 5};
+                        unsigned int hacky_nonpointer;
+                        hacky_nonpointer = (unsigned int) char_array;
+                        for(i=0; i < 5; i++) { // Iterate through the int array with the int_pointer.
+                            printf("[hacky_nonpointer] points to %p, which contains the char '%c'\n",
+                            hacky_nonpointer, *((char *) hacky_nonpointer));
+                            hacky_nonpointer = hacky_nonpointer + sizeof(char);
+                        }
+                        hacky_nonpointer = (unsigned int) int_array;
+                        for(i=0; i < 5; i++) { // Iterate through the int array with the int_pointer.
+                            printf("[hacky_nonpointer] points to %p, which contains the integer %d\n",
+                            hacky_nonpointer, *((int *) hacky_nonpointer));
+                            hacky_nonpointer = hacky_nonpointer + sizeof(int);
+                        }
+                    }
+                result
+                    reader@hacking:~/booksrc $ gcc pointer_types5.c
+                    reader@hacking:~/booksrc $ ./a.out
+                    [hacky_nonpointer] points to 0xbffff810, which contains the char 'a'
+                    [hacky_nonpointer] points to 0xbffff811, which contains the char 'b'
+                    [hacky_nonpointer] points to 0xbffff812, which contains the char 'c'
+                    [hacky_nonpointer] points to 0xbffff813, which contains the char 'd'
+                    [hacky_nonpointer] points to 0xbffff814, which contains the char 'e'
+                    [hacky_nonpointer] points to 0xbffff7f0, which contains the integer 1
+                    [hacky_nonpointer] points to 0xbffff7f4, which contains the integer 2
+                    [hacky_nonpointer] points to 0xbffff7f8, which contains the integer 3
+                    [hacky_nonpointer] points to 0xbffff7fc, which contains the integer 4
+                    [hacky_nonpointer] points to 0xbffff800, which contains the integer 5
+                    reader@hacking:~/booksrc $
+        0x267 Variable Scoping
+            example 1: static variable scope
+                #include <stdio.h>
+                void function() { // An example function, with its own context
+                    int var = 5;
+                    static int static_var = 5; // Static variable initialization  <------ each static variable only "global in its own function scope"
+                    printf("\t[in function] var @ %p = %d\n", &var, var);
+                    printf("\t[in function] static_var @ %p = %d\n", &static_var, static_var);
+                    var++; // Add 1 to var.
+                    static_var++; // Add 1 to static_var.
+                }
+                int main() { // The main function, with its own context
+                    int i;
+                    static int static_var = 1337; // Another static, in a different context
+                    for(i=0; i < 5; i++) { // loop 5 times
+                        printf("[in main] static_var @ %p = %d\n", &static_var, static_var);
+                        function(); // Call the function.
+                    }
+                }
+            result
+                reader@hacking:~/booksrc $ gcc static2.c
+                reader@hacking:~/booksrc $ ./a.out
+                [in main] static_var @ 0x804968c = 1337
+                [in function] var @ 0xbffff814 = 5
+                [in function] static_var @ 0x8049688 = 5
+                [in main] static_var @ 0x804968c = 1337
+                [in function] var @ 0xbffff814 = 5
+                [in function] static_var @ 0x8049688 = 6
+                [in main] static_var @ 0x804968c = 1337
+                [in function] var @ 0xbffff814 = 5
+                [in function] static_var @ 0x8049688 = 7
+                [in main] static_var @ 0x804968c = 1337
+                [in function] var @ 0xbffff814 = 5
+                [in function] static_var @ 0x8049688 = 8
+                [in main] static_var @ 0x804968c = 1337
+                [in function] var @ 0xbffff814 = 5
+                [in function] static_var @ 0x8049688 = 9
+                reader@hacking:~/booksrc $
+        
+0x270 Memory Segmentation
+    compiled program memory has 5 parts
+        text segment
+            aka (code segment)
+            store program machine code
+            how program run
+                EIP point to first instruction in text segment
+                start processer execution loop
+                    1. Reads the instruction that EIP is pointing to
+                    2. Adds the byte length of the instruction to EIP
+                    3. Executes the instruction that was read in step 1
+                    4. Goes back to step 1
+            no write permission here
+                can't modify program code
+                allow multiple run
+
+        data segment
+            filled with the initialized global and static variables
+            writable
+            fix sized
+        bss segment
+            filled with their uninitialized global and static variables
+            writable
+            fix sized
+        heap
+            not fixed size
+            move downward toward higher memory address
+        stack
+            temp place to store function variables in function call
+            ESP track the end of stack
+            grows upward toward lower memory address
+            EBP(=frame pointer =local base pointer) reference local function variables in the current stack frame
+            SFP is used to restore EBP to its previous value
+            return address is used to restore EIP
+            example 0: my own explanation
+                first remember some x86 syntax
+                    mov a, b
+                        copy content of register b to register a
+                    mov [a], b
+                        copy content of register b to the address stored by register a
+                    mov a, [b]
+                        copy content of adress stored by register b to register a
+                    eg. a store 0x1234, 0x1234 store "0x0", then a = 0x1234, [a] = 0x0
+                    sub esp, 0x4
+                        move stack pointer upward if lower address on top
+                    push 0x4444
+                        does two things, move up the stack pointer to an empty place, write that value to that place
+                        equal assembly
+                            sub esp, 4
+                            mov [esp], X
+                    call function_name
+                        equal assembly
+                            push eip + 2
+                            jmp function_name
+                how function translate to assembly in simple view
+                    normal func
+                        int func(int a, int b) {
+                            int x;
+                            int y;
+                            x = 1;
+                            y = 2;
+                            return x;
+                        }
+                        func(5, 6);
+                    assembly version 1
+                        push 0x5
+                        push 0x6
+                        call func
+                        push ebp
+                        mov ebp, esp
+                        sub esp, 8
+                        mov [ebp - 4], 0x1
+                        mov [ebp - 8], 0x2
+                        leave
+                        ret
+                    assembly version 2
+                            0xbffff7c7 <-esp
+                        sub esp, 4
+                            0xbffff7c3 <-esp 
+                            0xbffff7c7
+                        mov [esp], 0x5
+                            0xbffff7c3 =0x5 <-esp 
+                            0xbffff7c7
+                        sub esp, 4
+                            0xbffff7bf <-esp
+                            0xbffff7c3 =0x5 
+                            0xbffff7c7
+                        mov [esp], 0x6
+                            0xbffff7bf =0x6 <-esp
+                            0xbffff7c3 =0x5 
+                            0xbffff7c7
+                        sub esp, 4
+                            0xbffff7bb <-esp
+                            0xbffff7bf =0x6
+                            0xbffff7c3 =0x5 
+                            0xbffff7c7
+                        mov [esp], eip + 2
+                            0xbffff7bb =ret_val <-esp
+                            0xbffff7bf =0x6
+                            0xbffff7c3 =0x5
+                            0xbffff7c7
+                        jmp func
+                        sub esp, 4
+                            0xbffff7b7 <-esp
+                            0xbffff7bb =ret_val
+                            0xbffff7bf =0x6
+                            0xbffff7c3 =0x5
+                            0xbffff7c7
+                        mov [esp], ebp
+                            0xbffff7b7 =ebp_val <-esp
+                            0xbffff7bb =ret_val
+                            0xbffff7bf =0x6
+                            0xbffff7c3 =0x5
+                            0xbffff7c7
+                        mov ebp, esp
+                            0xbffff7b7 =ebp_val <-esp,ebp
+                            0xbffff7bb =ret_val
+                            0xbffff7bf =0x6
+                            0xbffff7c3 =0x5
+                            0xbffff7c7
+                        sub esp, 8
+                            0xbffff7af <-esp
+                            0xbffff7b3
+                            0xbffff7b7 =ebp_val <-ebp
+                            0xbffff7bb =ret_val
+                            0xbffff7bf =0x6
+                            0xbffff7c3 =0x5
+                            0xbffff7c7
+                        mov [ebp - 4], 0x1
+                            0xbffff7af <-esp
+                            0xbffff7b3 =0x1
+                            0xbffff7b7 =ebp_val <-ebp
+                            0xbffff7bb =ret_val
+                            0xbffff7bf =0x6
+                            0xbffff7c3 =0x5
+                            0xbffff7c7
+                        mov [ebp - 8], 0x2
+                            0xbffff7af =0x2 <-esp
+                            0xbffff7b3 =0x1
+                            0xbffff7b7 =ebp_val <-ebp
+                            0xbffff7bb =ret_val
+                            0xbffff7bf =0x6
+                            0xbffff7c3 =0x5
+                            0xbffff7c7
+                        leave
+                        ret
+                    questions
+                        you may ask why we need ebp? look at the above example, seems can just use esp to access all variable.
+                            because https://blogs.msdn.microsoft.com/larryosterman/2007/03/12/fpo/
+            example 1: stack memory layout
+                void test_function(int a, int b, int c, int d) {
+                    int flag;
+                    char buffer[10];
+                    flag = 31337;
+                    buffer[0] = 'A';
+                }
+                int main() {
+                    test_function(1, 2, 3, 4);
+                }
+            disassembled instructions
+                reader@hacking:~/booksrc $ gcc -g stack_example.c
+                reader@hacking:~/booksrc $ gdb -q ./a.out
+                Using host libthread_db library "/lib/tls/i686/cmov/libthread_db.so.1".
+                (gdb) disass main
+                Dump of assembler code for function main():
+                0x08048357 <main+0>: push ebp  <------ function prologue start: set up stack frame; "push" means pushing ebp to stack frame
+                0x08048358 <main+1>: mov ebp,esp
+                0x0804835a <main+3>: sub esp,0x18
+                0x0804835d <main+6>: and esp,0xfffffff0
+                0x08048360 <main+9>: mov eax,0x0
+                0x08048365 <main+14>: sub esp,eax  <------ function prologue end
+                0x08048367 <main+16>: mov DWORD PTR [esp+12],0x4  <------ push 4(=variable d) to stack
+                0x0804836f <main+24>: mov DWORD PTR [esp+8],0x3  <------ push 3(=variable c) to stack
+                0x08048377 <main+32>: mov DWORD PTR [esp+4],0x2  <------ push 2(=variable b) to stack
+                0x0804837f <main+40>: mov DWORD PTR [esp],0x1  <------ push 1(=variable a) to stack, notice it's in reverse order 4 3 2 1, since it is FILO
+                0x08048386 <main+47>: call 0x8048344 <test_function>  <------ push next line address(=main+52) to stack then jump to 0x8048344
+                0x0804838b <main+52>: leave
+                0x0804838c <main+53>: ret
+                End of assembler dump
+                (gdb) disass test_function()
+                Dump of assembler code for function test_function:
+                0x08048344 <test_function+0>: push ebp  <------ function prologue start. ebp's value called saved frame pointer (SFP), SFP is used to restore ebp
+                0x08048345 <test_function+1>: mov ebp,esp  <------ copy esp to esb to set new frame pointer, frame pointer reference function local variables(flag and buffer)
+                0x08048347 <test_function+3>: sub esp,0x28  <------ function prologue end 
+                0x0804834a <test_function+6>: mov DWORD PTR [ebp-12],0x7a69
+                0x08048351 <test_function+13>: mov BYTE PTR [ebp-40],0x41
+                0x08048355 <test_function+17>: leave
+                0x08048356 <test_function+18>: ret
+                End of assembler dump
+                (gdb)
+            stack situation
+                top of stack
+                low address: buffer
+                ...........: flag
+                ...........: SFP
+                ///////////:  <------ frame pointer ebp pointing in the middle
+                ...........: return address
+                ...........: a
+                ...........: b
+                ...........: c
+                high address: d
+            gdb
+                (gdb) list main
+                4
+                5 flag = 31337;
+                6 buffer[0] = 'A';
+                7 }
+                8
+                9 int main() {
+                10 test_function(1, 2, 3, 4);
+                11 }
+                (gdb) break 10
+                Breakpoint 1 at 0x8048367: file stack_example.c, line 10.
+                (gdb) break test_function
+                Breakpoint 2 at 0x804834a: file stack_example.c, line 5.
+                (gdb) run
+                Starting program: /home/reader/booksrc/a.out
+                Breakpoint 1, main () at stack_example.c:10
+                10 test_function(1, 2, 3, 4);
+                (gdb) i r esp ebp eip
+                esp 0xbffff7f0 0xbffff7f0
+                ebp 0xbffff808 0xbffff808
+                eip 0x8048367 0x8048367 <main+16>
+                (gdb) x/5i $eip
+                0x8048367 <main+16>: mov DWORD PTR [esp+12],0x4
+                0x804836f <main+24>: mov DWORD PTR [esp+8],0x3
+                0x8048377 <main+32>: mov DWORD PTR [esp+4],0x2
+                0x804837f <main+40>: mov DWORD PTR [esp],0x1
+                0x8048386 <main+47>: call 0x8048344 <test_function>
+                (gdb)
+                (gdb) cont
+                Continuing.
+                Breakpoint 2, test_function (a=1, b=2, c=3, d=4) at stack_example.c:5
+                5 flag = 31337;
+                (gdb) i r esp ebp eip
+                esp 0xbffff7c0 0xbffff7c0
+                ebp 0xbffff7e8 0xbffff7e8
+                eip 0x804834a 0x804834a <test_function+6>
+                (gdb) disass test_function
+                Dump of assembler code for function test_function:
+                0x08048344 <test_function+0>: push ebp
+                0x08048345 <test_function+1>: mov ebp,esp
+                0x08048347 <test_function+3>: sub esp,0x28
+                0x0804834a <test_function+6>: mov DWORD PTR [ebp-12],0x7a69
+                0x08048351 <test_function+13>: mov BYTE PTR [ebp-40],0x41
+                0x08048355 <test_function+17>: leave
+                0x08048356 <test_function+18>: ret
+                End of assembler dump.
+                (gdb) print $ebp-12
+                $1 = (void *) 0xbffff7dc
+                (gdb) print $ebp-40
+                $2 = (void *) 0xbffff7c0
+                (gdb) x/16xw $esp
+                0xbffff7c0: 􀀀0x00000000 0x08049548 0xbffff7d8 0x08048249
+                0xbffff7d0: 0xb7f9f729 0xb7fd6ff4 0xbffff808 0x080483b9
+                0xbffff7e0: 0xb7fd6ff4 0xbffff89c 0xbffff808 0x0804838b
+                0xbffff7f0: 0x00000001 0x00000002 0x00000003 0x00000004
+                (gdb)
+            gdb explain
+                 is arguments
+                 is return address
+                 is saved frame pointer
+                 is variable flag
+                􀀀 is variable buffer
+                extra space in the stack frame is padding
+    overall segment arrangement
+        low address
+        text(code) segment
+        data segment
+        bss segment
+        heap segment (grow downward)
+        stack segment (grow upward)
+        high address
+0x271 Memory Segments in C
+    example 1: memory segment
+        #include <stdio.h>
+        int global_var;
+        int global_initialized_var = 5;
+        void function() { // This is just a demo function.
+        int stack_var; // Notice this variable has the same name as the one in main().
+            printf("the function's stack_var is at address 0x%08x\n", &stack_var);
+        }
+        int main() {
+            int stack_var; // Same name as the variable in function()
+            static int static_initialized_var = 5;
+            static int static_var;
+            int *heap_var_ptr;
+            heap_var_ptr = (int *) malloc(4);
+            // These variables are in the data segment.
+            printf("global_initialized_var is at address 0x%08x\n", &global_initialized_var);
+            printf("static_initialized_var is at address 0x%08x\n\n", &static_initialized_var);
+            // These variables are in the bss segment.
+            printf("static_var is at address 0x%08x\n", &static_var);
+            printf("global_var is at address 0x%08x\n\n", &global_var);
+            // This variable is in the heap segment.
+            printf("heap_var is at address 0x%08x\n\n", heap_var_ptr);
+            // These variables are in the stack segment.
+            printf("stack_var is at address 0x%08x\n", &stack_var);
+            function();
+        }
+    output
+        reader@hacking:~/booksrc $ gcc memory_segments.c
+        reader@hacking:~/booksrc $ ./a.out
+        global_initialized_var is at address 0x080497ec
+        static_initialized_var is at address 0x080497f0
+        static_var is at address 0x080497f8
+        global_var is at address 0x080497fc
+        heap_var is at address 0x0804a008
+        stack_var is at address 0xbffff834
+        the function's stack_var is at address 0xbffff814
+        reader@hacking:~/booksrc $
+
+0x272 Using the Heap
+0x273 Error-Checked malloc()
+    example 1: a function to check if malloc success
+        #include <stdio.h>
+        #include <stdlib.h>
+        #include <string.h>
+        void *errorchecked_malloc(unsigned int); // Function prototype for errorchecked_malloc()
+        void *errorchecked_malloc(unsigned int size) { // An error-checked malloc() function
+            void *ptr;
+            ptr = malloc(size);
+            if(ptr == NULL) {
+                fprintf(stderr, "Error: could not allocate heap memory.\n");
+                exit(-1);
+            }
+            return ptr;
+        }
+0x280 Building on Basics
+    0x281 File Access
+        2 ways to access files
+            file streams
+                built from low-level
+            file descriptors
+                low-level functions
+                more direct
+                open()
+                    open file for read write
+                    return unique file descriptor which like a pointer to opened file
+                close(), read(), and write()
+    0x282 File Permissions
+    0x283 User IDs
+        every user has a unique user id
+        command "id" check user id
+        command "su" change user
+        header files
+            if <...>, compiler look in /usr/include
+            if "...", compiler look in current directory
+    0x284 Structs
+        example 1: 3 ways to access struct elements
+            #include <stdio.h>
+            #include <time.h>
+            int main() {
+                long int seconds_since_epoch;
+                struct tm current_time, *time_ptr;
+                int hour, minute, second, day, month, year;
+                seconds_since_epoch = time(0); // Pass time a null pointer as argument.
+                printf("time() - seconds since epoch: %ld\n", seconds_since_epoch);
+                time_ptr = &current_time; // Set time_ptr to the address of the current_time struct.
+                localtime_r(&seconds_since_epoch, time_ptr);
+                // Three different ways to access struct elements:
+                hour = current_time.tm_hour; // Direct access
+                minute = time_ptr->tm_min; // Access via pointer
+                second = *((int *) time_ptr); // Hacky pointer access
+                printf("Current time is: %02d:%02d:%02d\n", hour, minute, second);
+            }
+    0x285 Function Pointers
+    0x286 Pseudo-random Numbers
+    0x287 A Game of Chance
+
+0x300
